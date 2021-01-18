@@ -3,11 +3,14 @@ Exact-DMD on minimum jerk trajectories.
 """
 
 import numpy as np
-import torch as tr
+import jax.numpy as jnp
+import jax
+jax.config.update('jax_platform_name', 'cpu')
 import matplotlib.pyplot as plt
 
-from data.minimum_jerk_trajectories import MinimumJerk
-from dmd.exact_dmd import ExactDMD
+from datasets import *
+from models.dmd_models import *
+from utilities.utils import data2snapshots, snapshots2data
 
 
 def demo():
@@ -15,22 +18,35 @@ def demo():
     This demo shows an example of the exact dynamic mode decomposition on the minimum_jerk_trajectories data.
     :return: None
     """
-    tr.manual_seed(0)
-    t_steps = tr.arange(0, 1, 0.01)
-    trajectories = 1
+    np.random.seed(5)
+    t_steps = jnp.arange(0, 1, 0.01)
+    samples = 1
+    time_delay = 1
+    axis = 1
+    sigma = 0.001
+    trunc_svd = -1
+    dmd_method = "standard"
 
-    x_init = tr.deg2rad(tr.tensor([[0.], [50.]]))
-    x_final = tr.deg2rad(tr.tensor([[50.], [-20.]]))
+    x_init = jnp.deg2rad(jnp.array([[0.], [50.]]))
+    x_final = jnp.deg2rad(jnp.array([[50.], [-20.]]))
 
-    data_generator = MinimumJerk()
-    data = data_generator.get_data(t_steps, x_init, x_final, trajectories=trajectories, sigma=0.1)
+    data = MinimumJerk(x_init, x_final, t_steps, s_size=samples, sigma=sigma)
+    x0, x1 = data2snapshots(data.transform, t_delay=time_delay, axis=axis)
 
-    exact_dmd = ExactDMD()
-    X0 = data[:, :, :-1]
-    X1 = data[:, :, 1:]
-    print(tr.cat((X0, X1), dim=0).shape)  # TODO possible error
-    exact_dmd.fit(tr.cat((X0, X1), dim=0))
-    out = exact_dmd.predict(t_steps)
+    if dmd_method == "standard":
+        dmd = StandardDMD()
+    elif dmd_method == "exact":
+        dmd = ExactDMD()
+    elif dmd_method == "tls":
+        dmd = TLSDMD()
+    elif dmd_method == "fb":
+        dmd = FBDMD()
+    else:
+        raise NotImplementedError(
+            'DMD method {} not implement'.format(dmd_method))
+
+    dmd.fit(x0, x1, trunc_svd=trunc_svd, t_delay=time_delay, axis=axis)
+    out = jnp.real(dmd.predict(t_steps))
 
     # Visualize generated data
     fig = plt.figure()
@@ -50,14 +66,15 @@ def demo():
     ax13.set_xlabel("Time")
     ax13.set_ylabel("$\ddot{\Theta}$")
 
-    n = x_init.shape[0]
-    for idx in range(n):
-        ax11.plot(t_steps, np.real(out[idx, :]).T, 'g--')
-        ax11.plot(t_steps, data[:, idx, :].T, 'b', alpha=.5)
-        ax12.plot(t_steps, np.real(out[n + idx, :]).T, 'g--')
-        ax12.plot(t_steps, data[:, n + idx, :].T, 'b', alpha=.5)
-        ax13.plot(t_steps, np.real(out[2*n + idx, :]).T, 'g--')
-        ax13.plot(t_steps, data[:, 2*n + idx, :].T, 'b', alpha=.5)
+    idx = x_init.shape[0]
+    for d in data.transform:
+        ax11.plot(t_steps, d[:idx, :].T)
+        ax12.plot(t_steps, d[idx:2*idx, :].T)
+        ax13.plot(t_steps, d[2*idx:3*idx, :].T)
+
+    ax11.plot(t_steps, out[:idx, :].T, '--')
+    ax12.plot(t_steps, out[idx:2*idx, :].T, '--')
+    ax13.plot(t_steps, out[2*idx:3*idx, :].T, '--')
 
     plt.suptitle("Minimum Jerk Trajectories")
     plt.show()

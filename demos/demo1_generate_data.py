@@ -2,10 +2,10 @@
 Demo for python script data/minimum_jerk_trajectories.
 """
 
-import torch as tr
+import numpy as np
 import matplotlib.pyplot as plt
 
-from data.minimum_jerk_trajectories import MinimumJerk
+from datasets.minimum_jerk_trajectories import MinimumJerk
 
 
 def demo():
@@ -14,14 +14,14 @@ def demo():
     This demo uses minimal jerk data from data/minimum_jerk_trajectories.
     :return: None
     """
-    t_steps = tr.arange(0, 1, 0.01)
-    trajectories = 10
+    t_steps = np.arange(0, 1, 0.01)
+    samples = 10
+    sigma = 0.1
 
-    x_init = tr.deg2rad(tr.tensor([[0.], [0.]]))
-    x_final = tr.deg2rad(tr.tensor([[50.], [-20.]]))
+    x_init = np.deg2rad(np.array([[0.], [0.]]))
+    x_final = np.deg2rad(np.array([[50.], [-20.]]))
 
-    data_generator = MinimumJerk()
-    data = data_generator.get_data(t_steps, x_init, x_final, trajectories=trajectories, sigma=0.1)
+    data = MinimumJerk(x_init, x_final, t_steps, s_size=samples, sigma=sigma)
 
     # Visualize generated data
     fig = plt.figure()
@@ -41,11 +41,11 @@ def demo():
     ax13.set_xlabel("Time")
     ax13.set_ylabel("$\ddot{\Theta}$")
 
-    n = x_init.shape[0]
-    for idx in range(n):
-        ax11.plot(t_steps, data[:, idx, :].T)
-        ax12.plot(t_steps, data[:, n + idx, :].T)
-        ax13.plot(t_steps, data[:, 2*n + idx, :].T)
+    idx = x_init.shape[0]
+    for d in data.transform:
+        ax11.plot(t_steps, d[:idx, :].T)
+        ax12.plot(t_steps, d[idx:2*idx, :].T)
+        ax13.plot(t_steps, d[2*idx:3*idx, :].T)
 
     plt.suptitle("Minimum Jerk Trajectories")
     plt.show()
