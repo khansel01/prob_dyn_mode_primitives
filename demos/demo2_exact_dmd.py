@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 
 from datasets import *
 from models.dmd_models import *
+from utilities.kernellib import *
 from utilities.utils import data2snapshots, snapshots2data
 
 
@@ -24,14 +25,15 @@ def demo():
     time_delay = 1
     axis = 1
     sigma = 0.001
-    trunc_svd = -1
-    dmd_method = "standard"
+    trunc_svd = 0.9999
+    dmd_method = "kernel"
+    kernel = "rbf"
 
-    x_init = jnp.deg2rad(jnp.array([[0.], [50.]]))
+    x_init = jnp.deg2rad(jnp.array([[-10.], [50.]]))
     x_final = jnp.deg2rad(jnp.array([[50.], [-20.]]))
 
     data = MinimumJerk(x_init, x_final, t_steps, s_size=samples, sigma=sigma)
-    x0, x1 = data2snapshots(data.transform, t_delay=time_delay, axis=axis)
+    x0, x1 = data2snapshots(jnp.array(data.transform), t_delay=time_delay, axis=axis)
 
     if dmd_method == "standard":
         dmd = StandardDMD()
@@ -41,6 +43,13 @@ def demo():
         dmd = TLSDMD()
     elif dmd_method == "fb":
         dmd = FBDMD()
+    elif dmd_method == "kernel":
+        if kernel == "rbf":
+            dmd = KernelDMD(RBFKernel())
+        elif kernel == "polynomial":
+            dmd = KernelDMD(PolynomialKernel())
+        else:
+            dmd = KernelDMD()
     else:
         raise NotImplementedError(
             'DMD method {} not implement'.format(dmd_method))

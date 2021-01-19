@@ -7,26 +7,26 @@ Github: https://github.com/ekorudiawan/Minimum-Jerk-Trajectory
 """
 
 import numpy as np
-import jax.numpy as jnp
 from datasets.base_dataset import BaseDataset
 
 
 class MinimumJerk(BaseDataset):
-    def __init__(self, x_init: np.ndarray, x_final: np.ndarray, t_steps: np.ndarray, sigma: float=0.001, s_size: int=1):
-        """ Generate batches of Minimum-Jerk trajectories.
+    def __init__(self, x_init: np.ndarray, x_final: np.ndarray, t_steps: np.ndarray, **kwargs):
+        """  Generate batches of Minimum-Jerk trajectories.
         :param x_init: The initial x-values as a numpy nd.array of size Nx1.
         :param x_final: The final x-values as a numpy nd.array of size Nx1.
         :param t_steps: Time steps as a numpy nd.array of size T.
-        :param sigma: Describes the variability in initial and final x-values as a float value.
-        :param s_size: Defines the sample size of the batch. It's specified as an int value..
+        :param kwargs:
+                sigma: Describes the variability in initial and final x-values as a float value.
+                s_size: Defines the sample size of the batch. It's specified as an int value.
         """
         super().__init__()
         self.x_init = x_init
         self.x_final = x_final
         self.t_steps = t_steps
 
-        self.sigma = sigma
-        self.s_size = s_size
+        self.sigma = kwargs.get('sigma', 0.001)
+        self.s_size = kwargs.get('s_size', 1)
 
     @property
     def transform(self) -> np.ndarray:

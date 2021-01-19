@@ -51,7 +51,7 @@ class BaseDMD(object):
             args[0]: Left singular vectors U as jax.numpy.ndarray
             args[1]: Singular values S as jax.numpy.ndarray
             args[2]: Right singular Vectors V as jax.numpy.ndarray
-        :return:
+        :return: linear operator as jax.numpy.ndarray
         """
         if len(args) == 1:
             _u, _, _ = linalg.svd(jnp.append(x, args[0], axis=0), full_matrices=False)
@@ -93,7 +93,8 @@ class BaseDMD(object):
             elIf in [0, 1] of type float: Keep singular values representing Percentage of the data
             elIf >= 1 and of type int: Descirbes the truncation index
             else: no truncation is applied
-        :return: Tuple containing singular values, right and the singular vectors each as jax.numpy.ndarray.
+        :return: Tuple containing left singular vector, singular values and the singular vectors each as
+        jax.numpy.ndarray.
 
         References:
         Gavish, M., & Donoho, D. L. (2014). The optimal hard threshold for singular values is 4/sqrt(3).
