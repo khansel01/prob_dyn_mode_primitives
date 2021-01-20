@@ -1,7 +1,8 @@
-""" An implementation of a Radial Basis function Kernel
-"""
+""" An implementation of a Radial Basis function Kernel """
 
+import jax
 import jax.numpy as jnp
+from jax import vmap, jit
 
 
 class RBFKernel(object):
@@ -20,19 +21,22 @@ class RBFKernel(object):
         :return:A positive definite RBF Kernel
         """
         if x.ndim == 1 & y.ndim == 1:
-            inner = jnp.einsum('n, n -> ', x - y, x - y)
+            return self._kernel_fun(x.reshape(-1, 1), y.reshape(-1, 1))
         elif x.ndim == 2 & y.ndim == 2:
-            inner = - 2*jnp.einsum('ni, nj -> ij', x, y)
-            inner += jnp.ones_like(inner) * jnp.diag(jnp.einsum('ni, nj -> ij', y, y))
-            inner += (jnp.ones_like(inner) * jnp.diag(jnp.einsum('ni, nj -> ij', x, x))).T
-        elif x.ndim == 3 & y.ndim == 3 :
-            inner = - 2*jnp.einsum('bni, bnj -> bij', x, y)
-            jnp.diagonal(jnp.einsum('bni, bnj -> bij', y, y), axis1=1, axis2=2)
-            inner += jnp.ones_like(inner) * jnp.expand_dims(jnp.diagonal(jnp.einsum(
-                'bni, bnj -> bij', y, y), axis1=1, axis2=2), 1)
-            inner += (jnp.ones_like(inner) * jnp.expand_dims(jnp.diagonal(jnp.einsum(
-                'bni, bnj -> bij', y, y), axis1=1, axis2=2), 1)).transpose((0, 2, 1))
+            return self._kernel_fun(x, y)
+        elif x.ndim == 3 & y.ndim == 3:
+            return vmap(self._kernel_fun)(x, y)
         else:
             raise ValueError(f"The inputs have to be the same dimension. Dimension given x:{x.ndim}, y:{y.ndim}")
 
+    @jax.partial(jit, static_argnums=(0,))
+    def _kernel_fun(self, x, y):
+        """ Calculate a RBF Kernel
+        :param x: First matrix x as jax.numpy.ndarray
+        :param y: Second matrix x as jax.numpy.ndarray
+        :return:A positive definite RBF Kernel
+        """
+        inner = - 2 * jnp.einsum('ni, nj -> ij', x, y)
+        inner += jnp.ones_like(inner) * jnp.diag(jnp.einsum('ni, nj -> ij', y, y))
+        inner += (jnp.ones_like(inner) * jnp.diag(jnp.einsum('ni, nj -> ij', x, x))).T
         return self.theta * jnp.exp(-self.gamma/2 * inner)
