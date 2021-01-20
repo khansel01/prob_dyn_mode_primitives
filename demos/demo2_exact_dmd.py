@@ -2,9 +2,8 @@
 Exact-DMD on minimum jerk trajectories.
 """
 
-import numpy as np
-import jax.numpy as jnp
 import jax
+import jax.numpy as jnp
 jax.config.update('jax_platform_name', 'cpu')
 import matplotlib.pyplot as plt
 
@@ -12,6 +11,7 @@ from datasets import *
 from models.dmd_models import *
 from utilities.kernellib import *
 from utilities.utils import data2snapshots, snapshots2data
+from time import time
 
 
 def demo():
@@ -19,7 +19,7 @@ def demo():
     This demo shows an example of the exact dynamic mode decomposition on the minimum_jerk_trajectories data.
     :return: None
     """
-    np.random.seed(5)
+    seed = 5
     t_steps = jnp.arange(0, 1, 0.01)
     samples = 1
     time_delay = 1
@@ -32,8 +32,10 @@ def demo():
     x_init = jnp.deg2rad(jnp.array([[-10.], [50.]]))
     x_final = jnp.deg2rad(jnp.array([[50.], [-20.]]))
 
-    data = MinimumJerk(x_init, x_final, t_steps, s_size=samples, sigma=sigma)
+    t = time()
+    data = MinimumJerk(x_init, x_final, t_steps, s_size=samples, sigma=sigma, seed=seed)
     x0, x1 = data2snapshots(jnp.array(data.transform), t_delay=time_delay, axis=axis)
+    print(f'Data : {time()-t}')
 
     if dmd_method == "standard":
         dmd = StandardDMD()
@@ -54,8 +56,12 @@ def demo():
         raise NotImplementedError(
             'DMD method {} not implement'.format(dmd_method))
 
-    dmd.fit(x0, x1, trunc_svd=trunc_svd, t_delay=time_delay, axis=axis)
+    t = time()
+    dmd.fit(x0, x1, trunc_svd=trunc_svd, axis=axis)
+    print(f'DMD : {time() - t}')
+    t = time()
     out = jnp.real(dmd.predict(t_steps))
+    print(f'DMD : {time()-t}')
 
     # Visualize generated data
     fig = plt.figure()
