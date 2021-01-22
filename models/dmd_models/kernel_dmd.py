@@ -8,7 +8,7 @@ Kawahara, Y. (2016). Dynamic mode decomposition with reproducing kernels for Koo
 neural information processing systems, 29, 911-919.
 
 -----------------------------------------------------------------------------------------------------------------------
-Most DMD methods in this project are inspired by the PyDMD package and have been transferred
+Several DMD methods in this project are inspired by the PyDMD package and have been transferred
 to the jax library.
 
 Reference:
@@ -36,7 +36,6 @@ class KernelDMD(BaseDMD):
         else:
             self.kernel = kernel
 
-        self.k_hat = jnp.eye(2)
         self.eig_fun = jnp.zeros(0)
 
     # override
@@ -55,10 +54,10 @@ class KernelDMD(BaseDMD):
         u, s = self._svd(g, trunc_svd)
 
         # Compute linear operator
-        self.k_hat = self._linear_op(a, u, s)
+        self.a_tilde = self._linear_op(a, u, s)
 
         # Compute DMD Values and DMD Modes and approximations of DMD eigenfunctions
-        self.mu, self.phi, self.eig_fun = self._eig(self.k_hat, x0, u, s)
+        self.mu, self.phi, self.eig_fun = self._eig(self.a_tilde, x0, u, s)
 
         # Set Amplitudes of DMD Modes
         self.b = self.eig_fun[:, 0]

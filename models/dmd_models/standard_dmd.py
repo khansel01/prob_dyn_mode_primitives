@@ -9,7 +9,7 @@ Theory and applications. arXiv preprint arXiv:1312.0041.
 https://arxiv.org/abs/1312.0041
 
 -----------------------------------------------------------------------------------------------------------------------
-Most DMD methods in this project including StandardDMD are inspired by the PyDMD package and have been transferred
+Several DMD methods in this project including StandardDMD are inspired by the PyDMD package and have been transferred
 to the jax library.
 
 Reference:

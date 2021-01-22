@@ -8,7 +8,7 @@ from jax import vmap, jit
 class RBFKernel(object):
     def __init__(self, gamma: float=1/32, theta: float=1.):
         """ Construct a Radial Basis function Kernel
-        :param gamma: Describes the inverse width paramter of the kernel
+        :param gamma: Describes the inverse width parameter of the kernel
         :param theta: bias of the kernel as float. If zero => homogeneous kernel
         """
         self.gamma = gamma
@@ -21,7 +21,7 @@ class RBFKernel(object):
         :return:A positive definite RBF Kernel
         """
         if x.ndim == 1 & y.ndim == 1:
-            return self._kernel_fun(x.reshape(-1, 1), y.reshape(-1, 1))
+            return self._kernel_fun(x[:, None], y[:, None])
         elif x.ndim == 2 & y.ndim == 2:
             return self._kernel_fun(x, y)
         elif x.ndim == 3 & y.ndim == 3:

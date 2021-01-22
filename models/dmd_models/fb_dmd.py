@@ -5,7 +5,7 @@ Dawson, S. T., Hemati, M. S., Williams, M. O., & Rowley, C. W. (2016). Character
 sensor noise in the dynamic mode decomposition. Experiments in Fluids, 57(3), 42.
 
 -----------------------------------------------------------------------------------------------------------------------
-Most DMD methods in this project including forward-backward dDMD are inspired by the PyDMD package and have been
+Several DMD methods in this project including forward-backward dDMD are inspired by the PyDMD package and have been
 transferred to the jax library.
 
 Reference:

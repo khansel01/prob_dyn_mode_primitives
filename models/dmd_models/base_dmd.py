@@ -1,7 +1,7 @@
 """ The Python script Base DMD provides the default construct for all further DMD scripts.
 
 -----------------------------------------------------------------------------------------------------------------------
-Most DMD methods in this project including BaseDMD are inspired by the PyDMD package and have been transferred
+Several DMD methods in this project including BaseDMD are inspired by the PyDMD package and have been transferred
 to the jax library.
 
 Reference:

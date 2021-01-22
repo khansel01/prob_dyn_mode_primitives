@@ -23,7 +23,7 @@ class PolynomialKernel(object):
         :return: A positive definite polynomial Kernel
         """
         if x.ndim == 1 & y.ndim == 1:
-            return self._kernel_fun(x.reshape(-1, 1), y.reshape(-1, 1))
+            return self._kernel_fun(x[:, None], y[:, None])
         elif x.ndim == 2 & y.ndim == 2:
             return self._kernel_fun(x, y)
         elif x.ndim == 3 & y.ndim == 3:
