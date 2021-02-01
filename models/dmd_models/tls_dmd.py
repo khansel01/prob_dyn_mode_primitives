@@ -21,7 +21,7 @@ from models.dmd_models.base_dmd import BaseDMD
 
 
 class TLSDMD(BaseDMD):
-    def __init__(self):
+    def __init__(self, **kwargs):
         """ Total-Least-Squares Dynamic Mode Decomposition """
         super().__init__()
 

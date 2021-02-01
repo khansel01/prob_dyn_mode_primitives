@@ -25,7 +25,7 @@ from models.dmd_models.base_dmd import BaseDMD
 
 
 class StandardDMD(BaseDMD):
-    def __init__(self):
+    def __init__(self, **kwargs):
         """ Standard Dynamic Mode Decomposition """
         super().__init__()
 
@@ -36,10 +36,10 @@ class StandardDMD(BaseDMD):
         :param x1: Snapshot matrix as jax numpy ndarray
         """
         trunc_svd = kwargs.get("trunc_svd", 0)
-        trunc_tlsq = kwargs.get("trunc_tlsq", 0)
+        trunc_tls = kwargs.get("trunc_tls", 0)
 
         # TLS truncation
-        x0, x1 = self._tlsq(x0, x1, trunc_tlsq=trunc_tlsq)
+        x0, x1 = self._tlsq(x0, x1, trunc_tlsq=trunc_tls)
 
         # SVD
         u_r, s_r, v_r = self._svd(x0, trunc_svd=trunc_svd)

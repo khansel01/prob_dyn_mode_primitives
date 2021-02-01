@@ -26,7 +26,7 @@ from models.dmd_models.base_dmd import BaseDMD
 
 
 class FBDMD(BaseDMD):
-    def __init__(self):
+    def __init__(self, **kwargs):
         """ Forward-Backward Dynamic Mode Decomposition """
         super().__init__()
 
@@ -37,10 +37,10 @@ class FBDMD(BaseDMD):
         :param x1: Snapshot matrix as jax numpy ndarray
         """
         trunc_svd = kwargs.get("trunc_svd", -1)
-        trunc_tlsq = kwargs.get("trunc_tlsq", 0)
+        trunc_tls = kwargs.get("trunc_tls", 0)
 
         # TLS truncation
-        x0, x1 = self._tlsq(x0, x1, trunc_tlsq=trunc_tlsq)
+        x0, x1 = self._tlsq(x0, x1, trunc_tlsq=trunc_tls)
 
         # SVD (foward and backward)
         u_r_f, s_r_f, v_r_f = self._svd(x0, trunc_svd=trunc_svd)

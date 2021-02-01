@@ -2,8 +2,8 @@
 Probabilistic Dynamic Mode Primitives for Robotics
 """
 
-from demos.demo1_generate_data import demo as demo1
-from demos.demo2_exact_dmd import demo as demo2
+from demos.demo_dmd_simple_data import demo as demo1
+from demos.demp_dmd_min_jerk import demo as demo2
 
 
 def main():

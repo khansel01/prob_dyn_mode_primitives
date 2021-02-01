@@ -25,16 +25,15 @@ from models.dmd_models.base_dmd import BaseDMD
 
 
 class KernelDMD(BaseDMD):
-    def __init__(self, kernel=None):
+    def __init__(self, **kwargs):
         """ Kernelized Dynamic Mode Decomposition
         :param kernel: a certain kernel class from the kernel library
         """
         super().__init__()
 
-        if kernel is None:
+        self.kernel = kwargs.get("kernel", None)
+        if self.kernel is None:
             raise Warning(f"No Kernel selected. Please select a Kernel.")
-        else:
-            self.kernel = kernel
 
         self.eig_fun = jnp.zeros(0)
 

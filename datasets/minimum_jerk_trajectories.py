@@ -9,6 +9,9 @@ Github: https://github.com/ekorudiawan/Minimum-Jerk-Trajectory
 from datasets.base_dataset import BaseDataset
 import jax.numpy as jnp
 import jax.random as random
+import jax
+from jax import jit, vmap
+from time import time
 
 
 class MinimumJerk(BaseDataset):
@@ -20,6 +23,7 @@ class MinimumJerk(BaseDataset):
         :param kwargs:
                 sigma: Describes the variability in initial and final x-values as a float value.
                 s_size: Defines the sample size of the batch. It's specified as an int value.
+                prng_handler: Class that handles the pseudo random number generator (PRNG)
         """
         super().__init__()
         self.x_init = x_init
@@ -29,8 +33,7 @@ class MinimumJerk(BaseDataset):
         self.sigma = kwargs.get('sigma', 0.001)
         self.s_size = kwargs.get('s_size', 1)
 
-        self.seed = kwargs.get('seed', 0)
-        self.key = random.PRNGKey(self.seed)
+        self.prng_handler = kwargs.get("prng_handler", None)
 
     @property
     def transform(self) -> jnp.ndarray:
@@ -38,8 +41,14 @@ class MinimumJerk(BaseDataset):
         :return: A batch of size b x n x m as numpy ndarray.
         B n and t correspond to the batch size the x_init size and the time, respectively.
         """
-        x_init, x_final = self.x_random
 
+        keys = self.prng_handler.get_keys(2)
+        x_init, x_final = self.x_random(keys)
+
+        return jnp.concatenate(self._fun(x_init, x_final), axis=1)
+
+    @jax.partial(jit, static_argnums=(0,))
+    def _fun(self, x_init: jnp.ndarray, x_final: jnp.ndarray) -> tuple:
         delta_x = x_final - x_init
         delta_t = self.t_steps / self.t_steps[-1]
 
@@ -50,18 +59,24 @@ class MinimumJerk(BaseDataset):
 
         dx_dtt = delta_x * (60 / self.t_steps[-1] ** 2 * delta_t - 180 / self.t_steps[-1] ** 2 * delta_t ** 2
                             + 120 / self.t_steps[-1] ** 2 * delta_t ** 3)
+        return x, dx_dt, dx_dtt
 
-        return jnp.concatenate((x, dx_dt, dx_dtt), axis=1)
+    @jax.partial(jit, static_argnums=(0,))
+    def x_random(self, keys: tuple) -> tuple:
+        key_init, key_final = keys
+        return random.normal(key_init, (*self.b_size[:2], 1)) * self.sigma + self.x_init, random.normal(
+            key_final, (*self.b_size[:2], 1)) * self.sigma + self.x_final
 
+    # -----------------------------------------------------------------------------------------------------------------
+    # Next up are the getter and setter methods
+    # -----------------------------------------------------------------------------------------------------------------
     @property
     def b_size(self) -> tuple:
         return self.s_size, self.x_init.shape[0], self.t_steps.shape[0]
 
-    @property
-    def x_random(self) -> tuple:
-        key_init, key_final, self.key = random.split(self.key, 3)
-        return random.normal(key_init, (*self.b_size[:2], 1)) * self.sigma + self.x_init, random.normal(
-            key_final, (*self.b_size[:2], 1)) * self.sigma + self.x_final
+
+
+
 
 
 
