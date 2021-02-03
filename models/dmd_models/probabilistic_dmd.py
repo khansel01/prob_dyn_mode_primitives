@@ -5,6 +5,7 @@ are sampled. Then, the exact DMD is used to obtain the DMD modes and DMD values.
 References:
 Takeishi, N., Kawahara, Y., Tabei, Y., & Yairi, T. (2017, August). Bayesian Dynamic Mode Decomposition.
 In IJCAI (pp. 2814-2821).
+https://github.com/thetak11/bayesiandmd
 
 Tu, Jonathan H., et al. "On dynamic mode decomposition: Theory and applications." arXiv preprint arXiv:1312.0041 (2013).
 https://arxiv.org/abs/1312.0041

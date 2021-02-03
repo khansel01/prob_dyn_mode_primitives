@@ -3,7 +3,7 @@
 Reference:
 Takeishi, N., Kawahara, Y., Tabei, Y., & Yairi, T. (2017, August). Bayesian Dynamic Mode Decomposition.
 In IJCAI (pp. 2814-2821).
-
+https://github.com/thetak11/bayesiandmd
 -----------------------------------------------------------------------------------------------------------------------
 Several DMD methods in this project are inspired by the PyDMD package and have been transferred
 to the jax library.
@@ -55,7 +55,7 @@ class BayesianDMD(BaseSamplingDMD):
 
     # override
     def fit(self, x0: jnp.ndarray, x1: jnp.ndarray, **kwargs) -> None:
-        """ Compute the Probabilistic Dynamic Mode Decomposition given the two snapshot matrices x0 and x1
+        """ Compute the Bayesian Dynamic Mode Decomposition given the two snapshot matrices x0 and x1
 
         :param x0: Snapshot matrix as jax numpy ndarray
         :param x1: Snapshot matrix as jax numpy ndarray
