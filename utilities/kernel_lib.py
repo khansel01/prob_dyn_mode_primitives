@@ -18,7 +18,7 @@ class BaseKernel(object):
     def __init__(self):
         """ Construct a the Basis Kernel class """
 
-    def transform(self, x, y) -> jnp.ndarray:
+    def transform(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
         """ Transform given data into a symmetric positive definite Kernel
         :param x: First matrix x as jax.numpy.ndarray
         :param y: Second matrix x as jax.numpy.ndarray
@@ -42,7 +42,7 @@ class BaseKernel(object):
 
 class PolynomialKernel(BaseKernel):
     def __init__(self, gamma: float = 1., theta: float = 1 / 16., deg: int = 1):
-        """ Construct a PolynomialKernel of the form (gamma * x.T @ y + theta) ** pow
+        """ Construct a PolynomialKernel of the form (gamma * x.T @ y + th   eta) ** pow
         :param gamma: The process variance controls the weight of the outer product as float
         :param theta: bias of the kernel as float. If zero => homogeneous kernel
         :param pow: describes the degree of the polynomial kernel.
@@ -81,8 +81,9 @@ class RBFKernel(BaseKernel):
         :param y: Second matrix x as jax.numpy.ndarray
         :return:A positive definite RBF Kernel
         """
-        m = x.shape[1]
+        i = x.shape[1]
+        j = y.shape[1]
         inner = - 2 * jnp.einsum('ni, nj -> ij', x, y) + \
-            jnp.ones((m, m)) * jnp.diag(jnp.einsum('ni, nj -> ij', y, y)) + \
-            (jnp.ones((m, m)) * jnp.diag(jnp.einsum('ni, nj -> ij', x, x))).T
+            jnp.ones((i, j)) * jnp.diag(jnp.einsum('ni, nj -> ij', y, y)) + \
+            (jnp.ones((j, i)) * jnp.diag(jnp.einsum('ni, nj -> ij', x, x))).T
         return self.theta * jnp.exp(-self.gamma/2 * inner)

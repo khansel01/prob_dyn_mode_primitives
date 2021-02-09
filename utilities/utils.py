@@ -47,13 +47,15 @@ def pos_def(x: jnp.ndarray) -> jnp.ndarray:
     :param x: NxN Matrix
     :return: NxN Matrix
     """
+
     def closest_matrix(b):
         out = (b + b.conj().T) / 2
         eig_val, eig_vec = jnp.linalg.eig(out)
-        out = eig_vec @ jnp.diag(jnp.clip(eig_val, a_min=1e-5, a_max=None)) @ eig_vec.T
-        return jnp.real(out)
+        out = eig_vec @ jnp.diag(jnp.maximum(eig_val, 1e-5)) @ eig_vec.conj().T
+        return out.astype(x.dtype)
 
-    return lax.cond(jnp.all(jnp.linalg.eigvals(x) > 0) | jnp.all(jnp.isclose(x, x.T)), closest_matrix, lambda b: b, x)
+    return lax.cond(jnp.all(jnp.linalg.eigvals(x) > 0) & jnp.all(jnp.isclose(x, x.conj().T)),
+                    lambda b: b.astype(x.dtype), closest_matrix, x)
 
 
 @jit

@@ -24,11 +24,8 @@ class BaseDMD(object):
         self.a_tilde = jnp.eye(2)
         self.b = jnp.zeros(0)
 
-    def fit(self, x0: jnp.ndarray, x1: jnp.ndarray, *args, **kwargs) -> None:
-        """ Compute the Base Dynamic Mode Decomposition given the two snapshot matrices x0 and x1
-        :param x0: Snapshot matrix as jax numpy ndarray
-        :param x1: Snapshot matrix as jax numpy ndarray
-        """
+    def fit(self, *args, **kwargs) -> None:
+        """ Compute a specified Dynamic Mode Decomposition """
         raise NotImplementedError(f"No fit() method available." 
                                   "BaseDMD only specifies the default construct of the corresponding DMD methods.")
 
