@@ -109,7 +109,6 @@ class ParticleSmoother(object):
 
         self.num_particles = kwargs.get("num_particles", 20)
         self.iterations = kwargs.get("iterations", 100)
-        self.y_dim = kwargs.get("y_dim", 1)
 
         self.particles = []
         self.weights = []
@@ -144,15 +143,92 @@ class ParticleSmoother(object):
 
         self.smooth_particle.reverse()
 
-    @property
-    def shape(self):
-        return self.x_init.shape[0]
-
     @staticmethod
     @jax.partial(jit, static_argnums=(2,))
     def cat(key, weights, samples):
         categorical = Categorical(weights)
         return categorical.sample(key, sample_shape=(samples,))
+
+    @staticmethod
+    @jax.partial(jit, static_argnums=(0,))
+    def _weighting(func, mu, sigma, y, w_old=1):
+        weights = w_old * func(mu, sigma, y)
+        weights /= jnp.sum(weights)
+        return weights
+
+
+class PKSmoother(object):
+    def __init__(self, fx, gx, p_y, x_init, sigmas, **kwargs):
+        self.fx = fx
+        self.gx = gx
+
+        self.p_y = p_y
+
+        self.x_init = x_init[:, None]
+        self.sigma_x, self.sigma_y = sigmas
+
+        self.q = kwargs.get('q', jnp.eye(self.x_init.shape[0]) * 1e-5)
+
+        self.prng_handler = kwargs.get("prng_handler", None)
+        self.iterations = kwargs.get("iterations", 100)
+
+        self.filter_mu = []
+        self.filter_sigma = []
+
+        self.smooth_mu = []
+        self.smooth_sigma = []
+
+    def filtering(self, labels):
+        sig_points = self.x_init + jnp.linalg.cholesky(pos_def(self.sigma_x)) @ self._xi
+
+        weights = self._weighting(self.p_y, sig_points, self.sigma_y, labels[:, 0])
+
+        self.filter_mu.append(weights @ sig_points.T)
+        _delta = (sig_points.T - self.filter_mu[-1]).T
+        self.filter_sigma.append(jnp.einsum(f'jn, in -> ji', weights * _delta, _delta))
+
+        for i in range(1, self.iterations):
+            _mu = self.fx @ self.filter_mu[-1].T
+            _sigma = self.filter_sigma[-1] + self.sigma_x
+
+            sig_points = _mu[:, None] + jnp.linalg.cholesky(pos_def(_sigma)) @ self._xi
+
+            weights = self._weighting(self.p_y, sig_points, self.sigma_y, labels[:, i])
+            self.filter_mu.append(weights @ sig_points.T)
+            _delta = (sig_points.T - self.filter_mu[-1]).T
+            self.filter_sigma.append(jnp.einsum(f'jn, in -> ji', weights * _delta, _delta))
+
+    def smoothing(self, labels):
+        self.filtering(labels)
+
+        self.smooth_mu = self.filter_mu.copy()
+        self.smooth_sigma = self.filter_sigma.copy()
+
+        for i in range(self.iterations - 1, 0, -1):
+            _mu, _sigma =  self._backward(self.fx,
+                                          [self.smooth_mu[i - 1], self.smooth_mu[i]],
+                                          [self.smooth_sigma[i - 1], self.smooth_sigma[i]],
+                                          self.q)
+
+            self.smooth_mu[i - 1], self.smooth_sigma[i - 1] = _mu, _sigma
+
+    @property
+    def _xi(self):
+        xi = jnp.zeros((self.x_init.shape[0], 2 * self.x_init.shape[0]))
+        xi = index_update(xi, index[:, :self.x_init.shape[0]],
+                          jnp.eye(self.x_init.shape[0]) * jnp.sqrt(self.x_init.shape[0]))
+        xi = index_update(xi, index[:, self.x_init.shape[0]:],
+                          - jnp.eye(self.x_init.shape[0]) * jnp.sqrt(self.x_init.shape[0]))
+        return xi
+
+    @staticmethod
+    @jit
+    def _backward(fx, mu: list, sigma: list, *args):
+        _mu = fx @  mu[0]
+        _sigma = fx @ sigma[0] @ fx.T + args[0]
+        _gain = sigma[0] @ fx.T @ jnp.linalg.inv(_sigma)
+
+        return mu[0] + _gain @ (mu[1] - _mu), sigma[0] + _gain @ (sigma[1] - _sigma) @ _gain.T
 
     @staticmethod
     @jax.partial(jit, static_argnums=(0,))
