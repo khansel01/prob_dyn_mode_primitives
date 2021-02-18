@@ -1,6 +1,7 @@
 from utilities.utils import pos_def
 from utilities.kernel_lib import *
 from jax.ops import index_update, index
+from numpyro.distributions import Categorical
 
 
 class Curbature(object):
@@ -86,3 +87,76 @@ class Curbature(object):
         gain = _cor @ jnp.linalg.inv(_cov)
 
         return mu + gain @ (mu_smoothed - _mu), sigma + gain @ jnp.linalg.inv(sigma_smoothed - _cov) @ gain.T
+
+
+class ParticleSmoother(object):
+    def __init__(self, pi_x0: jnp.function, pi_x: jnp.function, p_x: jnp.function
+                 , p_y: jnp.function, x_init: jnp.array, sigmas: tuple, **kwargs):
+        # sample distributions
+        self.pi_x0 = pi_x0
+        self.pi_x = pi_x
+
+        # probability distributions
+        self.p_x = p_x
+        self.p_y = p_y
+
+        # initial value
+        self.x_init = x_init
+
+        self.sigma_x, self.sigma_y = sigmas
+
+        self.prng_handler = kwargs.get("prng_handler", None)
+
+        self.num_particles = kwargs.get("num_particles", 20)
+        self.iterations = kwargs.get("iterations", 100)
+        self.y_dim = kwargs.get("y_dim", 1)
+
+        self.particles = []
+        self.weights = []
+        self.smooth_particle = []
+
+    def filtering(self, labels):
+        self.particles.append(self.pi_x0(self.prng_handler.get_keys(1)[0], self.x_init,
+                                         self.sigma_x, self.num_particles))
+
+        self.weights.append(self._weighting(self.p_y, self.particles[-1].T,
+                                            self.sigma_y, labels[:, 0]))
+
+        for i in range(1, self.iterations):
+            indx = self.cat(self.prng_handler.get_keys(1)[0], self.weights[-1], self.num_particles)
+
+            self.particles.append(self.pi_x(self.prng_handler.get_keys(1)[0], self.particles[-1][indx].T,
+                                            self.sigma_x))
+
+            self.weights.append(self._weighting(self.p_y, self.particles[-1].T,
+                                                self.sigma_y, labels[:, i]))
+
+    def smoothing(self):
+        indx = self.cat(self.prng_handler.get_keys(1)[0], self.weights[-1], 1)[0]
+        self.smooth_particle.append(self.particles[-1][indx])
+
+        for i in range(self.iterations - 1, 0, -1):
+            weights = self._weighting(self.p_x, self.particles[i - 1].T, self.sigma_x,
+                                           self.particles[i][indx], self.weights[i - 1])
+
+            indx = self.cat(self.prng_handler.get_keys(1)[0], weights, 1)[0]
+            self.smooth_particle.append(self.particles[i - 1][indx])
+
+        self.smooth_particle.reverse()
+
+    @property
+    def shape(self):
+        return self.x_init.shape[0]
+
+    @staticmethod
+    @jax.partial(jit, static_argnums=(2,))
+    def cat(key, weights, samples):
+        categorical = Categorical(weights)
+        return categorical.sample(key, sample_shape=(samples,))
+
+    @staticmethod
+    @jax.partial(jit, static_argnums=(0,))
+    def _weighting(func, mu, sigma, y, w_old=1):
+        weights = w_old * func(mu, sigma, y)
+        weights /= jnp.sum(weights)
+        return weights
