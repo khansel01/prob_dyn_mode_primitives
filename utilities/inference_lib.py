@@ -4,6 +4,12 @@ from jax.ops import index_update, index
 from numpyro.distributions import Categorical
 
 
+# ----------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------
+# Curbature Smoothing
+# ----------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------
+
 class Curbature(object):
     def __init__(self, fx: jnp.function, gx: jnp.function, dims: tuple, **kwargs):
         self.fx = fx
@@ -13,10 +19,6 @@ class Curbature(object):
 
         self.q = kwargs.get('q', jnp.eye(self.dims[0]))
         self.r = kwargs.get('r', jnp.eye(self.dims[2]))
-
-        self.xi = jnp.zeros((self.dims[0], 2 * self.dims[0]))
-        self.xi = index_update(self.xi, index[:, :self.dims[0]], jnp.eye(self.dims[0]) * jnp.sqrt(self.dims[0]))
-        self.xi = index_update(self.xi, index[:, self.dims[0]:], - jnp.eye(self.dims[0]) * jnp.sqrt(self.dims[0]))
 
         self.x_init = kwargs.get('x_init', jnp.zeros(self.dims[0]))
 
@@ -88,6 +90,21 @@ class Curbature(object):
 
         return mu + gain @ (mu_smoothed - _mu), sigma + gain @ jnp.linalg.inv(sigma_smoothed - _cov) @ gain.T
 
+    @property
+    def xi(self):
+        _xi = jnp.zeros((self.x_init.shape[0], 2 * self.x_init.shape[0]))
+        _xi = index_update(_xi, index[:, :self.x_init.shape[0]],
+                           jnp.eye(self.x_init.shape[0]) * jnp.sqrt(self.x_init.shape[0]))
+        _xi = index_update(_xi, index[:, self.x_init.shape[0]:],
+                           - jnp.eye(self.x_init.shape[0]) * jnp.sqrt(self.x_init.shape[0]))
+        return _xi
+
+
+# ----------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------
+# Particle Smoother
+# ----------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------
 
 class ParticleSmoother(object):
     def __init__(self, pi_x0: jnp.function, pi_x: jnp.function, p_x: jnp.function
@@ -157,6 +174,12 @@ class ParticleSmoother(object):
         return weights
 
 
+# ----------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------
+# Combination of Kalman Smoothing and Importance Sampling
+# ----------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------
+
 class PKSmoother(object):
     def __init__(self, fx, gx, p_y, x_init, sigmas, **kwargs):
         self.fx = fx
@@ -179,7 +202,7 @@ class PKSmoother(object):
         self.smooth_sigma = []
 
     def filtering(self, labels):
-        sig_points = self.x_init + jnp.linalg.cholesky(pos_def(self.sigma_x)) @ self._xi
+        sig_points = self.x_init + jnp.linalg.cholesky(pos_def(self.sigma_x)) @ self.xi
 
         weights = self._weighting(self.p_y, sig_points, self.sigma_y, labels[:, 0])
 
@@ -191,7 +214,7 @@ class PKSmoother(object):
             _mu = self.fx @ self.filter_mu[-1].T
             _sigma = self.filter_sigma[-1] + self.sigma_x
 
-            sig_points = _mu[:, None] + jnp.linalg.cholesky(pos_def(_sigma)) @ self._xi
+            sig_points = _mu[:, None] + jnp.linalg.cholesky(pos_def(_sigma)) @ self.xi
 
             weights = self._weighting(self.p_y, sig_points, self.sigma_y, labels[:, i])
             self.filter_mu.append(weights @ sig_points.T)
@@ -213,13 +236,13 @@ class PKSmoother(object):
             self.smooth_mu[i - 1], self.smooth_sigma[i - 1] = _mu, _sigma
 
     @property
-    def _xi(self):
-        xi = jnp.zeros((self.x_init.shape[0], 2 * self.x_init.shape[0]))
-        xi = index_update(xi, index[:, :self.x_init.shape[0]],
-                          jnp.eye(self.x_init.shape[0]) * jnp.sqrt(self.x_init.shape[0]))
-        xi = index_update(xi, index[:, self.x_init.shape[0]:],
-                          - jnp.eye(self.x_init.shape[0]) * jnp.sqrt(self.x_init.shape[0]))
-        return xi
+    def xi(self):
+        _xi = jnp.zeros((self.x_init.shape[0], 2 * self.x_init.shape[0]))
+        _xi = index_update(_xi, index[:, :self.x_init.shape[0]],
+                           jnp.eye(self.x_init.shape[0]) * jnp.sqrt(self.x_init.shape[0]))
+        _xi = index_update(_xi, index[:, self.x_init.shape[0]:],
+                           - jnp.eye(self.x_init.shape[0]) * jnp.sqrt(self.x_init.shape[0]))
+        return _xi
 
     @staticmethod
     @jit
@@ -229,6 +252,78 @@ class PKSmoother(object):
         _gain = sigma[0] @ fx.T @ jnp.linalg.inv(_sigma)
 
         return mu[0] + _gain @ (mu[1] - _mu), sigma[0] + _gain @ (sigma[1] - _sigma) @ _gain.T
+
+    @staticmethod
+    @jax.partial(jit, static_argnums=(0,))
+    def _weighting(func, mu, sigma, y, w_old=1):
+        weights = w_old * func(mu, sigma, y)
+        weights /= jnp.sum(weights)
+        return weights
+
+
+# ----------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------
+# Particle MCMC
+# ----------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------
+
+class ParticleMCMC(object):
+    def __init__(self, pi_x0: jnp.function, pi_x: jnp.function, p_x: jnp.function
+                 , p_y: jnp.function, x_init: jnp.array, sigmas: tuple, **kwargs):
+        # sample distributions
+        self.pi_x0 = pi_x0
+        self.pi_x = pi_x
+
+        # probability distributions
+        self.p_x = p_x
+        self.p_y = p_y
+
+        # initial value
+        self.x_init = x_init
+
+        self.sigma_x, self.sigma_y = sigmas
+
+        self.prng_handler = kwargs.get("prng_handler", None)
+
+        self.num_particles = kwargs.get("num_particles", 20)
+        self.iterations = kwargs.get("iterations", 100)
+
+        self.particles = []
+        self.weights = []
+        self.ref_particle = []
+
+    def filtering(self, labels, x_reference):
+        _particles = jnp.append(self.pi_x0(self.prng_handler.get_keys(1)[0], self.x_init, self.sigma_x,
+                                           self.num_particles), x_reference.T[0:1, :], axis=0)
+        self.particles.append(_particles)
+
+        self.weights.append(self._weighting(self.p_y, self.particles[-1].T, self.sigma_y, labels[:, 0]))
+
+        for i in range(1, self.iterations):
+            indx = self.cat(self.prng_handler.get_keys(1)[0], self.weights[-1][:-1], self.num_particles)
+
+            _particles = self.pi_x(self.prng_handler.get_keys(1)[0], self.particles[-1][indx].T, self.sigma_x)
+
+            indx = self.cat(self.prng_handler.get_keys(1)[0],
+                            self._weighting(self.p_x, self.particles[-1].T, self.sigma_x,
+                                            x_reference[:, i], self.weights[-1]), 1)
+
+            if indx < self.num_particles:
+                self.particles.append(jnp.append(_particles, _particles[indx, :], axis=0))
+            else:
+                self.particles.append(jnp.append(_particles, x_reference.T[indx, :], axis=0))
+
+            self.weights.append(self._weighting(self.p_y, self.particles[-1].T, self.sigma_y, labels[:, i]))
+
+    @property
+    def x_reference(self):
+        return jnp.array(self.particles)[:, jnp.argmax(self.weights[-1]), :].T
+
+    @staticmethod
+    @jax.partial(jit, static_argnums=(2,))
+    def cat(key, weights, samples):
+        categorical = Categorical(weights)
+        return categorical.sample(key, sample_shape=(samples,))
 
     @staticmethod
     @jax.partial(jit, static_argnums=(0,))
