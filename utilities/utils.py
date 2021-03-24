@@ -79,3 +79,64 @@ def sample_complex_normal(key, mean, sigma):
     _normal = MultivariateNormal(loc=_mean.T, covariance_matrix=_sigma)
     samples = _normal.sample(key)
     return samples[:, :dim] + 1j * samples[:, dim:]
+
+
+class Standardization(object):
+    def __init__(self, data: jnp.ndarray):
+        """ Standardization of given data.
+
+        :param data: is represented as NxT JAX.ndarry,
+        where N and T correspond to the number of dimensions and time, respectively.
+        """
+        self.data = data
+
+    def __call__(self):
+        return self.forward()
+
+    @property
+    def mu(self):
+        return jnp.sum(self.data, axis=1, keepdims=True) / self.data.shape[1]
+
+    @property
+    def sigma(self):
+        return jnp.diag((self.data - self.mu) @ (self.data - self.mu).T / self.data.shape[1])[:, None]
+
+    def forward(self):
+        return jnp.reciprocal(self.sigma) * (self.data - self.mu)
+
+    def backward(self):
+        return self.sigma * self.forward() + self.mu
+
+
+class Whitening(object):
+    def __init__(self, data: jnp.ndarray):
+        """ Whitening of given data.
+
+        :param data: is represented as NxT JAX.ndarry,
+        where N and T correspond to the number of dimensions and time, respectively.
+        """
+        self.data = data
+
+    def __call__(self):
+        return self.forward()
+
+    @property
+    def mu(self):
+        return jnp.sum(self.data, axis=1, keepdims=True) / self.data.shape[1]
+
+    @property
+    def sigma(self):
+        return (self.data - self.mu) @ (self.data - self.mu).T / self.data.shape[1]
+
+    @property
+    def std_u(self):
+        _lambda, u = jnp.linalg.eig(self.sigma)
+        return jnp.sqrt(_lambda) * jnp.eye(_lambda.shape[0]), u
+
+    def forward(self):
+        std, u = self.std_u
+        return  jnp.linalg.lstsq(std, jnp.eye(std.shape[0]))[0] @ u.T @ (self.data - self.mu)
+
+    def backward(self):
+        std, u = self.std_u
+        return  u @ std @ self.forward() + self.mu

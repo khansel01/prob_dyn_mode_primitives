@@ -9,26 +9,26 @@ from models.gp_models.gp_dmd import GPDMD
 
 parser = argparse.ArgumentParser(description="Test")
 parser.add_argument("--device", default="cpu", type=str,
-                        help="Specify the device on which Jax works. Possible devices are cpu or gpu (if available).")
+                    help="Specify the device on which Jax works. Possible devices are cpu or gpu (if available).")
 parser.add_argument("--x64", default=True, type=bool,
-                        help="Defines the float type used by Jax.")
+                    help="Defines the float type used by Jax.")
 
 parser.add_argument("--kernel", default="RBF", type=str,
                     help="Specifies the Kernel used in KernelDMD. Possible Methods are Polynomial and RBF")
 
 parser.add_argument("--seed", default=11, type=int,
-                        help="Defines the seed of the pseudo random number generator.")
+                    help="Defines the seed of the pseudo random number generator.")
 parser.add_argument("--sigma", default=0.1, type=float,
                     help="Set the variability in the sampled data.")
 parser.add_argument("--samples", default=1, type=int,
-                        help="Set the number of sampled trajectories.")
+                    help="Set the number of sampled trajectories.")
 parser.add_argument("--time_delay", default=1, type=int,
-                        help="Set an integer to define the time shift used to create delayed coordinates.")
+                    help="Set an integer to define the time shift used to create delayed coordinates.")
 parser.add_argument("--axis", default=1, type=int,
-                        help="Set the axis along which the trajectories will be concatenated.")
+                    help="Set the axis along which the trajectories will be concatenated.")
 
 parser.add_argument("--latent_dim", default=5, type=int,
-                        help="Dimensionality of the latent space.")
+                    help="Dimensionality of the latent space.")
 parser.add_argument("--iterations", default=10000, type=int,
                     help="Specifies the iterations of the Optimizer.")
 
@@ -57,7 +57,7 @@ def demo():
     kernel_fun = eval(f'{args.kernel}Kernel')
 
     gp_dmd = GPDMD(iterations=args.iterations, latent_dim=args.latent_dim,
-                  prng_handler=prng_handler, kernel=kernel_fun())
+                   prng_handler=prng_handler, kernel=kernel_fun())
 
     gp_dmd.fit(x)
 
