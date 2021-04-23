@@ -14,7 +14,7 @@ parser.add_argument("--device", default="cpu", type=str,
 parser.add_argument("--x64", default=True, type=bool,
                     help="Defines the float type used by Jax.")
 
-parser.add_argument("--dmd", default="Kernel", type=str,
+parser.add_argument("--dmd", default="Exact", type=str,
                     help="Specifies the DMD method used. Possible Methods are "
                          "Standard, Exact, FB, TLS, Kernel, Probabilistic and Bayesian")
 

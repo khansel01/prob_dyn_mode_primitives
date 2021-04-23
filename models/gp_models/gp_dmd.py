@@ -25,10 +25,19 @@ from numpyro.distributions import MultivariateNormal
 class GPDMD(object):
     def __init__(self, **kwargs):
         """ Guassian Process Dynamic Mode Decomposition """
-        self.sigma_x = None
-        self.sigma_z = None
-        self.a_tilde = None
-        self.sigma_a = None
+        self.alpha_x = kwargs.get("alpha_x", 1.)
+        self.beta_x = kwargs.get("beta_x", 1e-3)
+        self.alpha_0 = kwargs.get("alpha_0", 1.)
+        self.beta_0 = kwargs.get("beta_0", 1e-3)
+        self.alpha_a = kwargs.get("alpha_a", 1.)
+        self.beta_a = kwargs.get("beta_a", 1e-3)
+        self.alpha_y = kwargs.get("alpha_y", 1.)
+        self.beta_y = kwargs.get("beta_y", 1e-3)
+
+        self.gamma = kwargs.get("gamma", 1/32)
+        self.theta = kwargs.get("theta", 1.)
+
+        self.l_r = kwargs.get("l_r", 1e-3)
 
         self.mu = None
         self.phi = None
@@ -47,14 +56,14 @@ class GPDMD(object):
 
         self.ll_values = []
 
-    def fit(self, x: jnp.ndarray, *args, **kwargs) -> None:
+    def fit(self, y: jnp.ndarray, *args, **kwargs) -> None:
         """ Compute the Gaussian Process Dynamic Mode Decomposition given the data matrix
-        :param x: Data matrix as jax numpy ndarray.
+        :param y: Data matrix as jax numpy ndarray.
         """
         key = self.prng_handler.get_keys(1)
-        variables = self._init_vars(key[0], x.T, self.latent_dim)
+        variables = self._init_vars(key[0], y, self.latent_dim)
 
-        _, self.sigma_x, z, self.sigma_z, a_tilde, self.sigma_a = self._train(variables)
+        y, self.lambda_y, x, lambda_x, lambda_0, a_tilde, lambda_a = self._train(variables)
 
         # Compute lower dimensional linear operator
         self.a_tilde = a_tilde.T
@@ -63,7 +72,7 @@ class GPDMD(object):
         self.mu, self.phi = jnp.linalg.eig(self.a_tilde)
 
         # Compute Amplitude of DMD Modes
-        self.b = jnp.linalg.lstsq(self.phi, z.T[:, 0], rcond=None)[0]
+        self.b = jnp.linalg.lstsq(self.phi, x.T[:, 0], rcond=None)[0]
 
     def predict(self, t_steps: jnp.ndarray, pow: float = 1) -> jnp.ndarray:
         """ Predict the data with the calculated DMD values
@@ -72,38 +81,42 @@ class GPDMD(object):
         :return: Predicted Data as jax.numpy.ndarray
         """
         time_behaviour = self._vander(self.mu, len(t_steps), pow=pow)
-        return self.phi @ jnp.diag(self.b) @ time_behaviour
+        return (self.phi @ jnp.diag(self.b) @ time_behaviour).T
 
     def _train(self, variables):
-        x, sigma_x, z, sigma_z, a_tilde, sigma_a = variables
-        opt_state = self.optimizer.opt_init([z, sigma_z])
 
-        x_outer = jnp.einsum('kd, hd -> kh', x, x)
+        y, lambda_y, x, lambda_0, lambda_x, a_tilde, lambda_a = variables
+        gamma, theta = self.gamma, self.theta
+
+        opt_state = self.optimizer.opt_init([gamma, theta, x, lambda_y])
+
+        y_outer = jnp.einsum('kd, hd -> kh', y, y)
         for _ in tqdm(range(self.iterations)):
-            args = [x_outer, sigma_x, a_tilde, sigma_a, [*x.shape, self.latent_dim]]
-            params, opt_state, value = self.optimizer.step([z, sigma_z], opt_state, self.kernel_fun, *args)
-            z, sigma_z = params
-            sigma_z = jnp.maximum(sigma_z, 1e-2)
+            args = [y_outer, a_tilde, lambda_0, lambda_x, self.alpha_y, self.beta_y]
+            params, opt_state, value = self.optimizer.step([gamma, theta, x, lambda_y],
+                                                           opt_state, self.kernel_fun, *args)
+            gamma, theta, x, lambda_y = params
 
-            args = [sigma_x, z]
-            a_tilde, sigma_a = self._close_form_step([a_tilde, sigma_a], *args)
-            sigma_a = jnp.maximum(sigma_a, 1e-2)
-
+            a_tilde = self._close_form_a(a_tilde, self.l_r, x, lambda_a, lambda_x)
+            lambda_a = self._close_form_lambda_a(lambda_a, self.l_r, a_tilde, self.alpha_a, self.beta_a)
+            lambda_0 = self._close_form_lambda_0(lambda_0, self.l_r, x, self.alpha_0, self.beta_0)
+            lambda_x = self._close_form_lambda_x(lambda_x, self.l_r, x, a_tilde, self.alpha_x, self.beta_x)
             self.ll_values.append(value)
 
-        return [x, sigma_x, z, sigma_z, a_tilde, sigma_a]
+        self.gamma, self.theta = gamma, theta
+        return [y, lambda_y, x, lambda_x, lambda_0, a_tilde, lambda_a]
 
     def get_mean_sigma(self, labels_x, labels_idx, t_steps):
-        z = self.predict(t_steps).T
+        x = self.predict(t_steps)
 
-        K11 = self.kernel_fun.transform(z[labels_idx, :].T, z[labels_idx, :].T)
-        K12 = self.kernel_fun.transform(z[labels_idx, :].T, z.T)
+        K11 = self.kernel_fun((self.gamma, self.theta), x[labels_idx, :].T, x[labels_idx, :].T)
+        K12 = self.kernel_fun((self.gamma, self.theta), x[labels_idx, :].T, x.T)
         K21 = K12.T
-        K22 = self.kernel_fun.transform(z.T, z.T)
+        K22 = self.kernel_fun((self.gamma, self.theta), x.T, x.T)
 
-        cholesky_inv = jnp.linalg.inv(jnp.linalg.cholesky(K11 + jnp.eye(*K11.shape) * self.sigma_z))
+        K11_inv = jnp.linalg.lstsq(K11 + jnp.eye(*K11.shape) / self.lambda_y, jnp.eye(K11.shape[0]))[0]
 
-        return K21 @ cholesky_inv.conj().T @ cholesky_inv @ labels_x, K22 - K21 @ cholesky_inv.conj().T @ cholesky_inv @ K12
+        return K21 @ K11_inv @ labels_x, K22 - K21 @ K11_inv @ K12
 
     def get_sample(self, labels_x, labels_idx, t_steps, number):
 
@@ -112,57 +125,83 @@ class GPDMD(object):
         mvnrml = MultivariateNormal(loc=mean.T, covariance_matrix=pos_def(sigma))
         return mvnrml.sample(self.prng_handler.get_keys(1)[0], sample_shape=(number,))
 
-    @staticmethod
-    def _init_vars(keys, x, latent_dim):
+    def _init_vars(self, keys, y, m):
         """  This method initializes a sample given random keys, observations and the latent_dim
 
         :param keys (Jax device array): Pseudo random number generator (PRNG) Keys
-        :param x (Jax devicearray): Contains a jax devicearray corresponding to the data
-        :param latent_dim (int): Dimensionality of the latent space.
+        :param y (Jax devicearray): Contains a jax devicearray corresponding to the data
+        :param m (int): Dimensionality of the latent space.
         :return:
         """
-        m, _ = x.shape
-        sigma_x = 1
+        t, _ = y.shape
 
-        z = jnp.ones(shape=(m, latent_dim))
-        sigma_z = 1e-2
+        lambda_x = self.alpha_x / self.beta_x
+        lambda_0 = self.alpha_0 / self.beta_0
+        lambda_a = self.alpha_a / self.beta_a
+        lambda_y = self.alpha_y / self.beta_y
 
-        a_tilde = random.normal(key=keys, shape=(latent_dim, latent_dim))
-        sigma_a = 1e-2
-        return [x, sigma_x, z, sigma_z, a_tilde, sigma_a]
+        x = jnp.ones(shape=(t, m))
+        a_tilde = random.normal(key=keys, shape=(m, m))
+        return [y, lambda_y, x, lambda_0, lambda_x, a_tilde, lambda_a]
 
     @staticmethod
     @jit
-    def _close_form_step(params, *args):
-        a_tilde, sigma_a = params
-        sigma_x, z = args
+    def _close_form_a(params, l_r, *args):
+        x, lambda_a, lambda_x = args
+        _, m = x.shape
+        i = jnp.eye(m)
+        a_tilde = jnp.linalg.lstsq(lambda_a / lambda_x * i + x[:-1, :].T @ x[:-1, :], i)[0] @ x[:-1, :].T @ x[1:, :]
+        return params + l_r*(a_tilde - params)
 
-        latent_dim = a_tilde.shape[0]
+    @staticmethod
+    @jit
+    def _close_form_lambda_a(params, l_r, *args):
+        a_tilde, alpha_a, beta_a = args
+        m = a_tilde.shape[0]
 
-        a_tilde = jnp.linalg.pinv(sigma_x / sigma_a + z[:-1, :].T @ z[:-1, :]) @ z[:-1, :].T @ z[1:, :]
+        lambda_a = (m**2 + 2*alpha_a - 2)/(jnp.trace(a_tilde @ a_tilde.T) + 2 * beta_a)
+        return params + l_r*(lambda_a - params)
 
-        sigma_a = 1 / (latent_dim ** 2 - 1) * jnp.trace(a_tilde @ a_tilde.T)
-        return a_tilde, sigma_a
+    @staticmethod
+    @jit
+    def _close_form_lambda_0(params, l_r, *args):
+        x, alpha_0, beta_0 = args
+        m = x.shape[1]
+
+        lambda_0 = (m + 2 * alpha_0 - 2) / (jnp.trace(x[0:1, :].T@x[0:1, :]) + 2 * beta_0)
+        return params + l_r*(lambda_0 - params)
+
+    @staticmethod
+    @jit
+    def _close_form_lambda_x(params, l_r, *args):
+        x, a_tilde, alpha_x, beta_x = args
+        t = x.shape[0]
+        m = a_tilde.shape[0]
+
+        prod = jnp.trace(x[1:, :].T @ x[1:, :] - 2 * x[:-1, :].T @ x[1:, :] @ a_tilde.T
+                         + x[:-1, :].T @ x[:-1, :] @ a_tilde @ a_tilde.T)
+        lambda_x = ((t-1)*m + 2 * alpha_x - 2) / (prod + 2 * beta_x)
+        return params + l_r*(lambda_x - params)
 
     @staticmethod
     @jax.partial(jit, static_argnums=(1,))
     def loss(params, kernel_fun, *args):
-        z, sigma_z = params
-        x_outer, sigma_x, a_tilde, sigma_a, dims = args
+        gamma, theta, x, lambda_y = params
+        y_outer, a_tilde, lambda_0, lambda_x, alpha_y, beta_y = args
 
-        m, n, latent_dim = dims
+        _, n = x.shape
 
-        kernel = kernel_fun.transform(z.T, z.T)
-        kernel += jnp.eye(*kernel.shape) * sigma_z
+        kernel = kernel_fun((gamma, theta), x.T, x.T)
+        kernel += jnp.eye(*kernel.shape) / lambda_y
         chol = jnp.linalg.cholesky(kernel)
         cholinv = jnp.linalg.inv(chol)
         kernelinv = cholinv.T @ cholinv
 
-        loss = 1 / 2 * (m * latent_dim * jnp.log(sigma_x) + latent_dim ** 2 * jnp.log(sigma_a)
-                        + (1 / sigma_a) * jnp.trace(a_tilde @ a_tilde.T)
-                        + n * jnp.sum(jnp.log(jnp.linalg.det(kernel))) + jnp.einsum('nn -> ', kernelinv @ x_outer)
-                        + (1 / sigma_x) * jnp.trace(z.T @ z - 2 * z[:-1, :].T @ z[1:, :] @ a_tilde.T
-                                                    + z[:-1, :].T @ z[:-1, :] @ a_tilde @ a_tilde.T))
+        loss = 1 / 2 * (n * jnp.sum(jnp.log(jnp.linalg.det(kernel))) + jnp.einsum('nn -> ', kernelinv @ y_outer)
+                        + lambda_x * jnp.trace(x[1:, :].T @ x[1:, :] - 2 * x[:-1, :].T @ x[1:, :] @ a_tilde.T
+                                               + x[:-1, :].T @ x[:-1, :] @ a_tilde @ a_tilde.T)
+                        + lambda_0*jnp.trace(x[0:1, :].T @x[0:1, :])
+                        - (alpha_y - 1) * jnp.log(lambda_y) + beta_y*lambda_y)
         return loss
 
     @staticmethod
