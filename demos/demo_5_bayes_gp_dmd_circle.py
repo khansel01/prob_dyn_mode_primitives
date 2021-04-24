@@ -22,7 +22,7 @@ parser.add_argument("--sigma", default=0.1, type=float,
 
 parser.add_argument("--latent_dim", default=3, type=int,
                     help="Dimensionality of the latent space.")
-parser.add_argument("--iterations", default=100, type=int,
+parser.add_argument("--iterations", default=5000, type=int,
                     help="Specifies the iterations of the Optimizer.")
 parser.add_argument("--l_r", default=1e-3, type=float,
                     help="Specifies the learning rate of the Optimizer.")
@@ -75,17 +75,9 @@ def demo(variables=None):
     _idx = jnp.linspace(0, t, i_points, dtype=int)
     z = x[_idx] + jax.random.uniform(prng_handler.get_keys(1)[0], (i_points, m), minval=-1, maxval=1)
 
-    # alpha_0_init, beta_0_init = 1e5, 1.
-    # alpha_x_init, beta_x_init = 1e5, 1.
-    # alpha_y_init, beta_y_init = 1e3, 1.
-    # alpha_a_init, beta_a_init = 1e-3, 1.
-    # alpha_0_init, beta_0_init = 1e5, 1.
-    # alpha_x_init, beta_x_init = 1e5, 1.
-    # alpha_y_init, beta_y_init = 1., 1e-5
-    # alpha_a_init, beta_a_init = 1e-3, 1.
     alpha_0_init, beta_0_init = 1e5, 1.
     alpha_x_init, beta_x_init = 1e5, 1.
-    alpha_y_init, beta_y_init = 1., 1e-5
+    alpha_y_init, beta_y_init = 1e3, 1.
     alpha_a_init, beta_a_init = 1e-3, 1.
 
     alpha_0, beta_0 = alpha_0_init, beta_0_init
@@ -245,18 +237,16 @@ def demo(variables=None):
     ll_values = []
     opt_state = optimizer.opt_init([gamma, theta, z])
 
+    mu_u, sigma_u = _close_form_q_u([mu_u, sigma_u], 1, y, x, z, gamma, theta, alpha_y, beta_y)
+    mu_a, sigma_a = _close_form_q_a([mu_a, sigma_a], 1, x, alpha_x, beta_x, alpha_a, beta_a)
+    alpha_0, beta_0 = _close_form_q_0([alpha_0, beta_0], 1, x, alpha_0_init, beta_0_init)
+    alpha_x, beta_x = _close_form_q_x([alpha_x, beta_x], 1, x, mu_a, sigma_a, alpha_x_init, beta_x_init)
+    alpha_y, beta_y = _close_form_q_y([alpha_y, beta_y], 1, y, x, z, gamma, theta, mu_u, sigma_u,
+                                      alpha_y_init, beta_y_init)
+    alpha_a, beta_a = _close_form_lambda_a([alpha_a, beta_a], 1, mu_a, sigma_a, alpha_a_init, beta_a_init)
+
     for _ in tqdm(range(iterations)):
         # ------------------------------------------------ E - step ---------------------------------------------------
-        # ------------------------------------------ Closed From Solutions --------------------------------------------
-
-        mu_u, sigma_u = _close_form_q_u([mu_u, sigma_u], 1, y, x, z, gamma, theta, alpha_y, beta_y)
-        mu_a, sigma_a = _close_form_q_a([mu_a, sigma_a], 1, x, alpha_x, beta_x, alpha_a, beta_a)
-        alpha_0, beta_0 = _close_form_q_0([alpha_0, beta_0], 1, x, alpha_0_init, beta_0_init)
-        alpha_x, beta_x = _close_form_q_x([alpha_x, beta_x], 1, x, mu_a, sigma_a, alpha_x_init, beta_x_init)
-        alpha_y, beta_y = _close_form_q_y([alpha_y, beta_y], 1, y, x, z, gamma, theta, mu_u, sigma_u,
-                                          alpha_y_init, beta_y_init)
-        alpha_a, beta_a = _close_form_lambda_a([alpha_a, beta_a], 1, mu_a, sigma_a, alpha_a_init, beta_a_init)
-
         # ---------------------------------------- Prediction Latent Space --------------------------------------------
 
         kernel_zz_inv = inv(kernel_fun((gamma, theta), z.T, z.T))
@@ -278,6 +268,16 @@ def demo(variables=None):
         x = jnp.sum(weights[None, :, None] * particles, axis=1)
         x = jnp.clip(x, a_min=-1e+10, a_max=1e+10)
 
+        # ------------------------------------------ Closed From Solutions --------------------------------------------
+
+        mu_u, sigma_u = _close_form_q_u([mu_u, sigma_u], 1, y, x, z, gamma, theta, alpha_y, beta_y)
+        mu_a, sigma_a = _close_form_q_a([mu_a, sigma_a], 1, x, alpha_x, beta_x, alpha_a, beta_a)
+        alpha_0, beta_0 = _close_form_q_0([alpha_0, beta_0], 1, x, alpha_0_init, beta_0_init)
+        alpha_x, beta_x = _close_form_q_x([alpha_x, beta_x], 1, x, mu_a, sigma_a, alpha_x_init, beta_x_init)
+        alpha_y, beta_y = _close_form_q_y([alpha_y, beta_y], 1, y, x, z, gamma, theta, mu_u, sigma_u,
+                                          alpha_y_init, beta_y_init)
+        alpha_a, beta_a = _close_form_lambda_a([alpha_a, beta_a], 1, mu_a, sigma_a, alpha_a_init, beta_a_init)
+
         # -------------------------------------------------------------------------------------------------------------
         # ---------------------------------------------- M - Step -----------------------------------------------------
         args = [y, x, alpha_y, beta_y]
@@ -287,8 +287,32 @@ def demo(variables=None):
         ll_values.append(value)
 
     # ----------------------------------------------------------------------------------------------------------------
+    # ----------------------------------------- Prediction Latent Space ----------------------------------------------
+    # ----------------------------------------------------------------------------------------------------------------
+
+    kernel_zz_inv = inv(kernel_fun((gamma, theta), z.T, z.T))
+    args = (gamma, theta, z, mu_u, sigma_u, kernel_zz_inv, beta_y / alpha_y)
+    particles *= 0
+    nrml = MultivariateNormal(loc=x[0], covariance_matrix=(beta_0 / alpha_0) * jnp.eye(m))
+    particles = index_update(particles, index[0],
+                             nrml.sample(prng_handler.get_keys(1)[0], sample_shape=(number,)))
+    weights = jnp.ones(number) / number
+    weights = weights * p_g(kernel_fun, particles[0], y[0], *args)
+    weights /= jnp.sum(weights)
+
+    for i in range(1, t):
+        particles = index_update(particles, index[i], pi_x(prng_handler.get_keys(1)[0], particles[i - 1],
+                                                           mu_a, beta_x / alpha_x, sigma_a))
+        weights = weights * p_g(kernel_fun, particles[i], y[i], *args)
+        weights /= jnp.sum(weights)
+        weights = jnp.clip(weights, a_min=1e-8)
+    x = jnp.sum(weights[None, :, None] * particles, axis=1)
+    x = jnp.clip(x, a_min=-1e+10, a_max=1e+10)
+
+    # ----------------------------------------------------------------------------------------------------------------
     # --------------------------------------- Prediction Observation Space -------------------------------------------
     # ----------------------------------------------------------------------------------------------------------------
+
     kernel_zz_inv = inv(kernel_fun((gamma, theta), z.T, z.T))
     kernel_tz = kernel_fun((gamma, theta), x.T, z.T)
     kernel_tt = kernel_fun((gamma, theta), x.T, x.T)
