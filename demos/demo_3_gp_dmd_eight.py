@@ -141,17 +141,28 @@ def demo():
     grid2 = fig2.add_gridspec(1, 1)
     ax2 = fig2.add_subplot(grid2[0, 0], projection='3d')
     _samples = gp_dmd.get_sample(labels_x, labels_idx, t_steps, 100)
-    for s in _samples:
-        ax2.plot(s[0], s[1], s[2], label='parametric curve', color='blue', alpha=0.05)
+    for i, s in enumerate(_samples):
+        if i == 0:
+            ax2.plot(s[0], s[1], s[2], color='blue', alpha=0.05)
+        else:
+            ax2.plot(s[0], s[1], s[2], color='blue', alpha=0.05)
     ax2.plot(mu[:, 0], mu[:, 1], mu[:, 2], label='Mean', color='blue')
     ax2.plot(y[:, 0], y[:, 1], y[:, 2], label='Data', color='red')
-    ax2.set_xlim(-1.5, 1.5)
-    ax2.set_ylim(-1.5, 1.5)
-    ax2.set_zlim(-1.5, 1.5)
-    ax2.set_xlabel("x-coordinate")
-    ax2.set_ylabel("y-coordinate")
-    ax2.set_zlabel("z-coordinate")
+    ax2.set_title("GPDMD Eight-Shape Dataset")
+    ax2.set_xlabel("$x$")
+    ax2.set_ylabel("$y$")
+    ax2.set_zlabel("$z$")
+    ax2.legend()
     plt.show()
+
+    mse_mean = jnp.trace((mu-y)@(mu-y).T)/mu.shape[0]
+    mse_samples = []
+    for s in _samples:
+        mse_samples.append(jnp.trace((s.T - y)@(s.T - y).T) / mu.shape[0])
+    delta_mse = jnp.array(mse_samples) - mse_mean
+    mse_std = jnp.sqrt(jnp.sum(delta_mse**2)/len(mse_samples))
+    print(f'The Mean Squared Error: {jnp.absolute(mse_mean)}')
+    print(f'The Standard Deviation of the Mean Squared Error: {jnp.absolute(mse_std)}')
 
 
 if __name__ == '__main__':

@@ -239,7 +239,8 @@ def demo(variables=None):
     # ----------------------------------------------------------------------------------------------------------------
 
     labels_idx = [0, 33, 66, 99]
-    labels_y =  y[0, labels_idx, :]
+    yy = jnp.sum(y, axis=0)/y.shape[0]
+    labels_y = yy[labels_idx, :]
 
     K11 = jnp.nan_to_num(kernel_fun((gamma, theta), x_latent[labels_idx, :].T, x_latent[labels_idx, :].T))
     K12 = jnp.nan_to_num(kernel_fun((gamma, theta), x_latent[labels_idx, :].T, x_latent.T))
@@ -333,11 +334,28 @@ def demo(variables=None):
     fig2 = plt.figure()
     grid2 = fig2.add_gridspec(1,1)
     ax2 = fig2.add_subplot(grid2[0,0], projection='3d')
-    for i in range(y.shape[0]):
-        ax2.plot(y[i, :, 0], y[i, :, 1], y[i, :, 2], label='parametric curve', color='red')
+    _samples = jnp.nan_to_num(mvnrml.sample(prng_handler.get_keys(1)[0], sample_shape=(100,)))
     for s_iter in _samples:
-        ax2.plot(s_iter[0], s_iter[1], s_iter[2], label='parametric curve', color='blue')
+        ax2.plot(s_iter[0], s_iter[1], s_iter[2], color='blue', alpha=0.05)
+    ax2.plot(mean[:, 0], mean[:, 1], mean[:, 2], label='Mean', color='blue')
+    for i in range(y.shape[0]):
+        ax2.plot(y[i, :, 0], y[i, :, 1], y[i, :, 2], label='Data', color='red')
+    ax2.set_title("GPDMD Eight-Shape Dataset")
+    ax2.set_xlabel("$x$")
+    ax2.set_ylabel("$y$")
+    ax2.set_zlabel("$z$")
+    ax2.legend()
     plt.show()
+
+    y_mean = jnp.sum(y, axis=0)/y.shape[0]
+    mse_mean = jnp.trace((mean-y_mean)@(mean-y_mean).T)/mean.shape[0]
+    mse_samples = []
+    for s in _samples:
+        mse_samples.append(jnp.trace((s.T - y_mean)@(s.T - y_mean).T) / mean.shape[0])
+    delta_mse = jnp.array(mse_samples) - mse_mean
+    mse_std = jnp.sqrt(jnp.sum(delta_mse**2)/len(mse_samples))
+    print(f'The Mean Squared Error: {jnp.absolute(mse_mean)}')
+    print(f'The Standard Deviation of the Mean Squared Error: {jnp.absolute(mse_std)}')
 
 
 if __name__ == '__main__':

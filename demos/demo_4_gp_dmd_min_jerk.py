@@ -138,7 +138,81 @@ def demo():
     ax15.set_xlabel("Sample")
     ax15.set_ylabel("$log_likelihood value$")
     ax15.plot(jnp.arange(len(gp_dmd.ll_values)), gp_dmd.ll_values)
+
+    # Figure
+    _samples = gp_dmd.get_sample(labels_x, labels_idx, t_steps, 100)
+    fig2 = plt.figure()
+    grid2 = fig2.add_gridspec(3, 2)
+    ax200 = fig2.add_subplot(grid2[0, 0])
+    ax200.set_title(f"Position 1. Joint")
+    ax200.set_xlabel("Time")
+    ax200.set_ylabel("$x$")
+    for s in _samples:
+        ax200.plot(t_steps, jnp.real(s[0]), 'b', alpha=0.05)
+    ax200.plot(t_steps, mu[:, 0], 'b', label='Mean')
+    ax200.plot(t_steps, y[:, 0], '--r', label='Data')
+    ax200.legend()
+
+    ax201 = fig2.add_subplot(grid2[0, 1])
+    ax201.set_title(f"Position 2. Joint")
+    ax201.set_xlabel("Time")
+    ax201.set_ylabel("$x$")
+    for s in _samples:
+        ax201.plot(t_steps, jnp.real(s[1]), 'b', alpha=0.05)
+    ax201.plot(t_steps, mu[:, 1], 'b', label='Mean')
+    ax201.plot(t_steps, y[:, 1], '--r', label='Data')
+    ax201.legend()
+
+    ax210 = fig2.add_subplot(grid2[1, 0])
+    ax210.set_title(f"Velocity 1. Joint")
+    ax210.set_xlabel("Time")
+    ax210.set_ylabel("$v$")
+    plt.gca().set_prop_cycle(None)
+    for s in _samples:
+        ax210.plot(t_steps, jnp.real(s[2]), 'b', alpha=0.05)
+    ax210.plot(t_steps, mu[:, 2], 'b', label='Mean')
+    ax210.plot(t_steps, y[:, 2], '--r', label='Data')
+    ax210.legend()
+
+    ax211 = fig2.add_subplot(grid2[1, 1])
+    ax211.set_title(f"Velocity 2. Joint")
+    ax211.set_xlabel("Time")
+    ax211.set_ylabel("$v$")
+    for s in _samples:
+        ax211.plot(t_steps, jnp.real(s[3]), 'b', alpha=0.05)
+    ax211.plot(t_steps, mu[:, 3], 'b', label='Mean')
+    ax211.plot(t_steps, y[:, 3], '--r', label='Data')
+    ax211.legend()
+
+    ax220 = fig2.add_subplot(grid2[2, 0])
+    ax220.set_title(f"Acceleration 1. Joint")
+    ax220.set_xlabel("Time")
+    ax220.set_ylabel("$a$")
+    for s in _samples:
+        ax220.plot(t_steps, jnp.real(s[4]), 'b', alpha=0.05)
+    ax220.plot(t_steps, mu[:, 4], 'b', label='Mean')
+    ax220.plot(t_steps, y[:, 4], '--r', label='Data')
+    ax220.legend()
+
+    ax221 = fig2.add_subplot(grid2[2, 1])
+    ax221.set_title(f"Acceleration 2. Joint")
+    ax221.set_xlabel("Time")
+    ax221.set_ylabel("$a$")
+    for s in _samples:
+        ax221.plot(t_steps, jnp.real(s[5]), 'b', alpha=0.05)
+    ax221.plot(t_steps, mu[:, 5], 'b', label='Mean')
+    ax221.plot(t_steps, y[:, 5], '--r', label='Data')
+    ax221.legend()
     plt.show()
+
+    mse_mean = jnp.trace((mu-y)@(mu-y).T)/mu.shape[0]
+    mse_samples = []
+    for s in _samples:
+        mse_samples.append(jnp.trace((s.T - y)@(s.T - y).T) / mu.shape[0])
+    delta_mse = jnp.array(mse_samples) - mse_mean
+    mse_std = jnp.sqrt(jnp.sum(delta_mse**2)/len(mse_samples))
+    print(f'The Mean Squared Error: {jnp.absolute(mse_mean)}')
+    print(f'The Standard Deviation of the Mean Squared Error: {jnp.absolute(mse_std)}')
 
 
 if __name__ == '__main__':

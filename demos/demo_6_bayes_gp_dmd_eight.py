@@ -65,7 +65,7 @@ def demo(variables=None):
 
     theta = 1.
     gamma = 1 / 32
-    i_points = 100
+    i_points = 25
 
     t, n = y.shape
 
@@ -390,9 +390,30 @@ def demo(variables=None):
     fig2 = plt.figure()
     grid2 = fig2.add_gridspec(1, 1)
     ax2 = fig2.add_subplot(grid2[0, 0], projection='3d')
-    ax2.plot(y[:, 0], y[:, 1], y[:, 2], label='parametric curve', color='red')
-    ax2.plot(mu[:, 0], mu[:, 1], mu[:, 2], label='parametric curve', color='blue')
+    num_samples2 = 100
+    _samples = nrml.sample(prng_handler.get_keys(1)[0], sample_shape=(num_samples2,))
+    for i, s in enumerate(_samples):
+        if i == 0:
+            ax2.plot(s[0], s[1], s[2], color='blue', alpha=0.05)
+        else:
+            ax2.plot(s[0], s[1], s[2], color='blue', alpha=0.05)
+    ax2.plot(mu[:, 0], mu[:, 1], mu[:, 2], label='Mean', color='blue')
+    ax2.plot(y[:, 0], y[:, 1], y[:, 2], label='Data', color='red')
+    ax2.set_title("Bayesian GP-DMD Eight-Shape Dataset")
+    ax2.set_xlabel("$x$")
+    ax2.set_ylabel("$y$")
+    ax2.set_zlabel("$z$")
+    ax2.legend()
     plt.show()
+
+    mse_mean = jnp.trace((mu-y)@(mu-y).T)/mu.shape[0]
+    mse_samples = []
+    for s in _samples:
+        mse_samples.append(jnp.trace((s.T - y)@(s.T - y).T) / mu.shape[0])
+    delta_mse = jnp.array(mse_samples) - mse_mean
+    mse_std = jnp.sqrt(jnp.sum(delta_mse**2)/len(mse_samples))
+    print(f'The Mean Squared Error: {jnp.absolute(mse_mean)}')
+    print(f'The Standard Deviation of the Mean Squared Error: {jnp.absolute(mse_std)}')
 
 
 if __name__ == '__main__':
