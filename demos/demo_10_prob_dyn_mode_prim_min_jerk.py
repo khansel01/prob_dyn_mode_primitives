@@ -242,7 +242,7 @@ def demo(variables=None):
     # ----------------------------------------------------------------------------------------------------------------
 
     labels_idx = [0, 33, 66, 99]
-    labels_y =  y[0, labels_idx, :]
+    labels_y = y[0, labels_idx, :]
 
     K11 = jnp.nan_to_num(kernel_fun((gamma, theta), x_latent[labels_idx, :].T, x_latent[labels_idx, :].T))
     K12 = jnp.nan_to_num(kernel_fun((gamma, theta), x_latent[labels_idx, :].T, x_latent.T))

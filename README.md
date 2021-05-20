@@ -1,5 +1,6 @@
 # Gaussian Process Dynamic Mode Decomposition
-This repository is the official implementation of my Master Thesis "Probabilistic Dynamic Mode Primitives"
+This repository is the official implementation of my Master Thesis "Probabilistic Dynamic Mode Primitives" under 
+the supervision of Hany Abdulsamad and Svenja Stark 
 
 ## Getting Started
 ### Prerequisites
@@ -17,4 +18,3 @@ $ conda env create -f base_env.yml
 
 ## Developers
 - Kay Hansel
-- Hany Abdulsamad

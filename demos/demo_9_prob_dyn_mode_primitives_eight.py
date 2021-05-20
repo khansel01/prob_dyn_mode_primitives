@@ -73,8 +73,8 @@ def demo(variables=None):
     beta_x = 1.
     alpha_0 = 1e3
     beta_0 = 1.
-    alpha_y = 1.
-    beta_y = 1e-3
+    alpha_y = 1e3
+    beta_y = 1.
 
     alpha_a = 1e-6
     beta_a = jnp.eye(m) * 1e-6
@@ -239,8 +239,7 @@ def demo(variables=None):
     # ----------------------------------------------------------------------------------------------------------------
 
     labels_idx = [0, 33, 66, 99]
-    yy = jnp.sum(y, axis=0)/y.shape[0]
-    labels_y = yy[labels_idx, :]
+    labels_y = y[0, labels_idx, :]
 
     K11 = jnp.nan_to_num(kernel_fun((gamma, theta), x_latent[labels_idx, :].T, x_latent[labels_idx, :].T))
     K12 = jnp.nan_to_num(kernel_fun((gamma, theta), x_latent[labels_idx, :].T, x_latent.T))
