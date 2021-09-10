@@ -143,14 +143,14 @@ def r_letter_example(args: argparse.Namespace) -> Tuple:
     else:
         save_loc = args.save_loc
 
-    _kwargs = {'suptitle': 'Eight Shape in Joint Space', 'subtitle': '$\mathrm{Joint}$',
+    _kwargs = {'suptitle': 'R Letter in Joint Space', 'subtitle': '$\mathrm{Joint}$',
                'xlabel': '$\mathrm{Time}$', 'ylabel': '$\Theta$', 'color': ["red", "blue", "blue"],
                'label': ["$\mathrm{Data}$", "$\mathrm{Mean}$", "$\mathrm{Variance}$"],
                'alpha': [1., 1., 0.3], 'ls': ["dashed", "solid", None], 'loc': ['best', None, None, None],
                'lw': [0.5, 1., None], 'fill_between': [False, False, True]}
     plot_grid([y, mu_y[None, :], mean_samples], gridsize=(2, 2), save=args.save_fig, save_loc=save_loc, **_kwargs)
 
-    _kwargs = {'suptitle': r'Eight Shape Latent Space', 'subtitle': '$\mathrm{Latent~dim}$',
+    _kwargs = {'suptitle': r'R Letter in Latent Space', 'subtitle': '$\mathrm{Latent~dim}$',
                'xlabel': '$\mathrm{Time}$', 'ylabel': '$x$', 'color': ['red', "blue", "blue"],
                'label': ["$\mathrm{True}$", "$\mathrm{Mean}$", "$\mathrm{Variance}$"],
                'alpha': [1., 1., 0.3], 'ls': ["dashed", "solid", None],
@@ -158,13 +158,6 @@ def r_letter_example(args: argparse.Namespace) -> Tuple:
                'lw': [0.5, 1., None], 'fill_between': [False, False, True]}
     plot_grid([gp_dmd.opt_params.x, x[None, :], x_samples], gridsize=(2, 2), save=args.save_fig,
               save_loc=save_loc, **_kwargs)
-
-    _kwargs = {'suptitle': 'Eight Shape Endeffektor Space', 'xlabel': '$x$',  'ylabel': '$y$', 'zlabel': '$z$',
-               'color': ['red', "blue", "blue"], 'label': ["$\mathrm{Data}$", "$\mathrm{Mean}$", "$\mathrm{Variance}$"],
-               'alpha': [1., 1., 0.3], 'ls': ["dashed", "solid", 'solid'], 'loc': [None, 'center left'],
-               'lw': [0.5, 2., 5.], 'zorder': [2, 3, 1], 'elev': [15, 15], 'azim': [-75, -15]}
-    plot_3d([y, mu_y[None, :], mean_samples], gridsize=(1, 2), figsize=(9, 5), save=args.save_fig,
-            save_loc=save_loc, **_kwargs)
 
     # ---------------------------------------------- Prints Error ----------------------------------------------------
 
