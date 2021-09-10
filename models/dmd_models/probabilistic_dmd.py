@@ -30,8 +30,8 @@ from jax import jit
 from jax.ops import index, index_update
 from numpyro.distributions import Gamma, MultivariateNormal
 from models.dmd_models.base_sampling_dmd import BaseSamplingDMD
-from utilities.utils import pos_def
-from utilities.gibbs_sampler import GibbsSampler
+from utils.utils_general import pos_def
+from utils.gibbs_sampler import GibbsSampler
 
 
 class ProbabilisticDMD(BaseSamplingDMD):

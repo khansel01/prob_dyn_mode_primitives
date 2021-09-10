@@ -128,7 +128,7 @@ class BaseDMD(object):
         https://arxiv.org/abs/1703.11004
 
         Hemati, M. S., Rowley, C. W., Deem, E. A., & Cattafesta, L. N. (2017). De-biasing the dynamic mode
-        decomposition for applied Koopman spectral analysis of noisy datasets. Theoretical and Computational
+        decomposition for applied Koopman spectral analysis of noisy data. Theoretical and Computational
         Fluid Dynamics, 31(4), 349-368.
         https://arxiv.org/pdf/1502.03854
         """

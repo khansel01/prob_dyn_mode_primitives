@@ -16,7 +16,7 @@ So if you're looking for a dynamic mode decomposition based on Python. Check out
 import jax.numpy as jnp
 
 from models.dmd_models.base_dmd import BaseDMD
-from utilities.gibbs_sampler import GibbsSampler
+from utils.gibbs_sampler import GibbsSampler
 
 
 class BaseSamplingDMD(BaseDMD):

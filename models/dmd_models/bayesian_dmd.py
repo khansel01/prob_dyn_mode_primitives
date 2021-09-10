@@ -24,8 +24,8 @@ from jax import jit
 from jax.ops import index, index_update
 from numpyro.distributions import Gamma
 from models.dmd_models.base_sampling_dmd import BaseSamplingDMD
-from utilities.gibbs_sampler import GibbsSampler
-from utilities.utils import sample_complex_normal
+from utils.gibbs_sampler import GibbsSampler
+from utils.utils_general import sample_complex_normal
 
 
 class BayesianDMD(BaseSamplingDMD):

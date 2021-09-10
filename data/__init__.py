@@ -1,0 +1,3 @@
+from data.minimum_jerk_trajectories import MinimumJerk
+from data.eight_shape_trajectories import EightShapes
+from data.circle_shape_trajectories import CircleShapes
